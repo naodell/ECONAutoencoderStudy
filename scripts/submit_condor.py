@@ -171,9 +171,3 @@ if __name__=='__main__':
     parameters=opt.param_file
     main(parameters)
     
-
-
-
-
-
-

@@ -18,5 +18,8 @@ sed -i '1s/#!.*python$/#!\/usr\/bin\/env python/' $NAME/bin/*
 sed -i '40s/.*/VIRTUAL_ENV="$(cd "$(dirname "$(dirname "${BASH_SOURCE[0]}" )")" \&\& pwd)"/' $NAME/bin/activate
 sed -i "2a source ${LCG}/setup.sh" $NAME/bin/activate
 sed -i "3a export PYTHONPATH=${LOCALPATH}:\$PYTHONPATH" $NAME/bin/activate
-rm ${NAME}.tar.gz
+FILE=${NAME}.tar.gz
+if test -f "$FILE"; then
+    rm ${NAME}.tar.gz
+fi
 tar -zcf ${NAME}.tar.gz ${NAME}

@@ -17,7 +17,7 @@ files = {
 if local:
     files['MinBias'] = files_batch['MinBias'][:1]
 
-eos_output_dir = '/eos/uscms/store/user/cmantill/HGCAL/study_autoencoder/'
+eos_output_dir = '/eos/uscms/store/user/naodell/hgcal/econ/study_autoencoder/'
 job_output_dir = '3_22_1/pu_discri_signaldriven/'
 
 file_per_batch = {'MinBias': 1}
