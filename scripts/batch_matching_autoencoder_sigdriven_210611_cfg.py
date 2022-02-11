@@ -29,7 +29,7 @@ gen_tree = 'FloatingpointThreshold0DummyHistomaxxydr015GenmatchGenclustersntuple
 bestmatch_only = True
 
 # Output directories
-eos_output_dir = '/eos/uscms/store/user/cmantill/HGCAL/study_autoencoder/'
+eos_output_dir = '/eos/uscms/store/user/naodell/HGCAL/study_autoencoder/'
 job_output_dir = '3_22_1/electron_photon_signaldriven/'
 
 file_per_batch = {
