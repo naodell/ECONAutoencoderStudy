@@ -1,173 +1,135 @@
 #!/usr/bin/env python
 import os
-from datetime import date
-from datetime import datetime
 import subprocess
-import time
-import optparse
-import json
-import pickle
+import datetime
+import argparse
+import textwrap
+import yaml
+from pathlib import Path
 
-def job_version(workdir):
-    version_date = "v_1_"+str(date.today())
-    if os.path.isdir(workdir):
-        dirs= [f for f in os.listdir(workdir) if os.path.isdir(os.path.join(workdir,f)) and f[:2]=='v_']
-        version_max = 0
-        for d in dirs:
-            version = int(d.split("_")[1])
-            if version > version_max: 
-                version_max = version
-        version_date = "v_"+str(version_max+1)+"_"+str(date.today())
-    return version_date
+def get_current_time():
+    now = datetime.datetime.now()
+    currentTime = '{0:02d}{1:02d}{2:02d}_{3:02d}{4:02d}{5:02d}'.format(now.year, now.month, now.day, now.hour, now.minute, now.second)
 
-def batch_files(files, file_per_batch):
-    batches={}
-    j=0
-    batches[j]=[]
-    for i, filename in enumerate(files):
-        filename = filename.replace('/eos/uscms/','root://cmseos.fnal.gov//')
-        batches[j].append(filename)
-        if i%file_per_batch == 0 and i+1<len(files):
-            j+=1
-            batches[j]=[]
-    return batches
-        
-def prepare_metadata(name, batches, output_dir, eos_output_dir, param, reachedEE): 
-    md = dict()
-    md['algo_trees'] = param.algo_trees
-    md['clustering'] = param.clustering_script
-    md['clustering_option'] = param.clustering_option
-    md['joboutputdir'] = eos_output_dir
-    md['name'] = name
-    md['inputfiles'] = []
-    md['jobs'] = []
+    return currentTime
 
-    for idx,b in enumerate(batches.keys()):
-        md['inputfiles'].append(batches[b])
-        md['jobs'].append({'idx': idx, 'inputfiles': batches[b]})
+def xrd_prefix(filepath):
+    if filepath.startswith('/eos/cms'):
+        prefix = 'root://eoscms.cern.ch/'
+    elif filepath.startswith('/eos/user'):
+        prefix = 'root://eosuser.cern.ch/'
+    elif filepath.startswith('/eos/uscms'):
+        prefix = 'root://cmseos.fnal.gov/'
+    elif filepath.startswith('/store/'):
+        # remote file
+        import socket
+        host = socket.getfqdn()
+        if 'cern.ch' in host:
+            prefix = 'root://xrootd-cms.infn.it//'
+        else:
+            prefix = 'root://cmseos.fnal.gov//'
+    filepath = f'{prefix}/{filepath}' 
 
-    if param.clustering_option == 1:
-        md['bestmatch_only'] = param.bestmatch_only
-        md['reachedEE'] = reachedEE
-        md['gen_tree'] = param.gen_tree
-        md['threshold'] = param.threshold
+    return filepath
 
-        metadata_file_name = '{0}/metadata.json'.format(output_dir)
-        with open(metadata_file_name,'w') as f:
-            json.dump(md, f, ensure_ascii=True, indent=2, sort_keys=True)
-    else:
-        md['bdts'] = param.bdts
-        md['working_points'] = param.working_points
-        md['correction_cluster'] = param.correction_cluster
-        md['correction_inputs'] = param.correction_inputs
-        md['calibration_weights'] = param.calibration_weights
-        md['store_max_only'] = param.store_max_only
-        md['additive_correction'] = param.additive_correction
-        md['pt_cut'] = param.pt_cut
+def make_file_batches(process, batch_config):
+    file_location = batch_config['location']
+    files_per_job = batch_config['files_per_job']
 
-        metadata_file_name = '{0}/metadata.pkl'.format(output_dir)
-        with open(metadata_file_name, 'wb') as f:
-            pickle.dump(md, f)
+    file_list = [xrd_prefix(f'{file_location}/{f}') for f in os.listdir(file_location) if f[-4:] == 'root']
+    if len(file_list) == 0:
+        return None
 
-    return md,metadata_file_name
+    n_files = len(file_list)
+    file_split = [file_list[i:i + files_per_job] for i in range(0, n_files, files_per_job)]
 
-def prepare_submit(name, batches, job_dir, md, md_name):
-    current = os.getcwd()
-    njobs = len(md['jobs'])
-    jobids = [str(jobid) for jobid in range(njobs)]
-    jobids_file = os.path.join(job_dir, 'submit.txt')
+    return file_split
 
-    with open(jobids_file, 'w') as f:
-        f.write('\n'.join(jobids))
+def prepare_submit(process, batches, output_dir, executable):
 
-    # prepare the list of files to transfer
-    script_file_name = os.path.join(os.path.dirname(__file__), 'run_processor.sh')
-    clustering_file_name =  os.path.join(os.path.dirname(__file__), md['clustering'])
-    files_to_transfer = [md_name, script_file_name, clustering_file_name]
-    files_to_transfer = [os.path.abspath(f) for f in files_to_transfer]
+    # Writing the batch config file
+    batch_filename = f'.batch_tmp_{process}'
+    batch_tmp = open(batch_filename, 'w')
+    batch_tmp.write(textwrap.dedent('''\
+        Universe              = vanilla
+        Should_Transfer_Files = YES
+        WhenToTransferOutput  = ON_EXIT
+        want_graceful_removal = true
+        transfer_output_files = ""
+        Notification          = Never
+        Requirements          = OpSys == "LINUX"&& (Arch != "DUMMY" )
+        request_disk          = 2000000
+        request_memory        = 4096
+        \n
+    '''))
 
-    # condor jdl
-    condordesc = '''\
-    universe              = vanilla
-    requirements          = (Arch == "X86_64") && (OpSys == "LINUX")
-    request_memory        = {request_memory}
-    request_disk          = 10000000
-    executable            = {scriptfile}
-    arguments             = {clustering} $(jobid)
-    transfer_input_files  = {files_to_transfer}
-    output                = {jobdir}/logs/$(jobid).out
-    error                 = {jobdir}/logs/$(jobid).err
-    log                   = {jobdir}/logs/$(jobid).log
-    use_x509userproxy     = true
-    Should_Transfer_Files = YES
-    initialdir            = {initialdir}
-    WhenToTransferOutput  = ON_EXIT
-    want_graceful_removal = true
-    periodic_release      = (NumJobStarts < 3) && ((CurrentTime - EnteredCurrentStatus) > 10*60)
-    {transfer_output}
-    queue jobid from {jobids_file}
-    '''.format(scriptfile=os.path.abspath(script_file_name),
-               files_to_transfer=','.join(files_to_transfer),
-               clustering=md['clustering_option'],
-               jobdir=os.path.abspath(job_dir),
-               # when outputdir is on EOS, disable file transfer as file is manually copied to EOS in processor.py
-               initialdir=os.path.abspath(job_dir),
-               transfer_output='transfer_output_files = ""',
-               jobids_file=os.path.abspath(jobids_file),
-               request_memory=4000
-           )
+    output_dir = xrd_prefix(str(output_dir))
+    for i, batch in enumerate(batches):
 
-    condorfile = os.path.join(job_dir, 'submit.cmd')
-    with open(condorfile, 'w') as f:
-        f.write(condordesc)
+        ## make file with list of inputs ntuples for the analyzer
+        input_file = open(f'input_{process}_{i}.txt', 'w')
+        input_file.writelines(f'{f}\n' for f in batch)
+        input_file.close()
 
-    cmd = 'condor_submit {condorfile}'.format(condorfile=condorfile)
+        ### set output directory
+        batch_tmp.write(textwrap.dedent(f'''\
+            Executable            = {executable}
+            Arguments             = {i} input_{process}_{i}.txt {process} {output_dir}
+            Transfer_Input_Files  = source.tar.gz, input_{process}_{i}.txt
+            Output                = reports/{process}_{i}_$(Cluster)_$(Process).stdout
+            Error                 = reports/{process}_{i}_$(Cluster)_$(Process).stderr
+            Log                   = reports/{process}_{i}_$(Cluster)_$(Process).log
+            Queue
+            \n
+        '''))
+
+    batch_tmp.close()
+
+    cmd = f'condor_submit {batch_filename}'
     return cmd
         
-def prepare_jobs(param, batches, key):
-    files = param.files[key]
-    output_dir = param.job_output_dir
+def prepare_output(output_dir, prefix):
+    time_string = get_current_time()
+    output_dir = Path(f'{output_dir}/{prefix}_{time_string}')
+    output_dir.mkdir(parents=True)
 
-    job_output_dir = 'condor/'+param.job_output_dir
-    eos_output_dir = param.eos_output_dir + param.job_output_dir
+    stage_dir = Path(f'batch/{prefix}_{time_string}')
+    stage_dir.mkdir(parents=True)
 
-    version=job_version(output_dir)
-    out_dir=job_output_dir+'/'+version+'/'+key
-    out_dir_eos=eos_output_dir+'/'+version+'/'+key
+    report_dir = stage_dir / Path('reports')
+    report_dir.mkdir()
 
-    if not os.path.exists(out_dir): os.makedirs(out_dir)
-    if not os.path.exists(out_dir+'/logs'): os.makedirs(out_dir+'/logs')
-
-    md,md_name = prepare_metadata(key, batches, out_dir, out_dir_eos, param, reachedEE=2)
-    cmd = prepare_submit(key, batches, out_dir, md, md_name)
-
-    return cmd
-    
-def main(parameters_file):
-    # Loading configuration file
-    import importlib
-    parameters = importlib.import_module(parameters_file)
-    local = parameters.local
-    cmds = ''
-
-    for key,filelist in parameters.files.items():
-        files = filelist
-        file_per_batch = parameters.file_per_batch[key]
-
-        if len(files)>0:
-            batches = batch_files(files, file_per_batch)
-      
-            # Preparing jobs working directory
-            cmd  = prepare_jobs(parameters, batches, key)
-
-            cmds += cmd + ' \n  '
-
-    print('Run the following command to submit the jobs:\n  %s' % cmds)
+    return output_dir, stage_dir
     
 if __name__=='__main__':
-    parser = optparse.OptionParser()
-    parser.add_option("--cfg",type="string", dest="param_file", help="select the parameter file")
-    (opt, args) = parser.parse_args()
-    parameters=opt.param_file
-    main(parameters)
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('config', 
+                        type=str,
+                        help="Provide configuration file for submission of batch jobs."
+                      )
+    args = parser.parse_args()
+
+    # Load configuration file
+    with open(args.config, 'r') as config_file: 
+        config = yaml.safe_load(config_file)
+
+    current_dir = os.getcwd()
+    executable = config['executable']
+    output_dir, stage_dir = prepare_output(config['output_dir'], config['prefix'])
+    os.system(f'tar czf {stage_dir}/source.tar.gz . --exclude="*.hdf5" --exclude="batch" --exclude="data" --exclude-vcs')
+    os.system(f'cp {current_dir}/{executable} {stage_dir}/.')
+    os.chdir(stage_dir)
+
+    print('Preparing to submit jobs:\n')
+    for process, batch_config in config['inputs'].items():
+        batches = make_file_batches(process, batch_config)
+        if not batches:
+            print('No files found for process {process}!')
+            continue
+
+        cmd = prepare_submit(process, batches, output_dir, executable.split('/')[-1])
+        print(f'{cmd}')
+        subprocess.call(cmd, shell=True)
     
+    os.chdir(current_dir)
