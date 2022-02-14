@@ -1,3 +1,5 @@
+# ECON-T algorithm testing scripts
+
 Scripts and notebooks in this package should be run with python 3 (they have been tested with python 3.7). The main dependencies are:
 - scipy
 - numpy
@@ -6,124 +8,39 @@ Scripts and notebooks in this package should be run with python 3 (they have bee
 - scikit-learn
 - xgboost
 
-## Setup at cmslpc 
-For procesing data and submitting condor jobs.
+## Setup (tentative instructions for upcoming pull request)
 
-Setting up the CMS software and cloning the HGCAL L1 trigger simulation:
-```
-export SCRAM_ARCH=slc7_amd64_gcc900 
-source /cvmfs/cms.cern.ch/cmsset_default.sh # (add this to .bashrc if possible)
-cmsrel CMSSW_11_3_0
-cd CMSSW_11_3_0/src/
-cmsenv
-git cms-init
-git remote add pfcaldev https://github.com/PFCal-dev/cmssw.git
-git fetch pfcaldev
-git cms-merge-topic -u PFCal-dev:v3.23.3_1130
-scram b -j4
-```
-
-Get configuration files:
-```
-cd L1Trigger/L1THGCalUtilities/test
-wget https://raw.githubusercontent.com/cmantill/ECONAutoencoderStudy/master/fragments/produce_ntuple_std_ae_xyseed_reduced_pt5_v11_cfg.py
-wget https://raw.githubusercontent.com/cmantill/ECONAutoencoderStudy/master/fragments/produce_ntuple_std_ae_xyseed_reduced_genmatch_v11_cfg.py
-```
-
-Get training models:
-```
-cd  ../L1THGCal/data/
-# copy AEmodels folder in data/ dir (latest models available at https://www.dropbox.com/s/f9rib5uyv2f0qzp/AEmodels.tgz?dl=0)
-# i.e. scp AEmodels.tgz cmslpc-sl7.fnal.gov:YOURLOCATION/L1THGCal/data/ 
-tar zxvf AEmodels.tgz
-# then go back to your directory
-cd -
-```
-
-### Running locally
-Then you can run locally, e.g.:
-```
-cmsRun produce_ntuple_std_ae_xyseed_reduced_pt5_v11_cfg.py
-```
-(`produce_ntuple_std_ae_xyseed_reduced_pt5_v11_cfg.py` contains a file that can be found in the cmslpc cluster so there is no need to have a grid certificate for this step).
-This will produce a `ntuple.root` file, which will contain subdirectories, e.g. `FloatingpointAutoEncoderTelescopeMSEDummyHistomaxxydr015Genclustersntuple->cd()` , each with a TTree inside. You can get the contents of the tree with `HGCalTriggerNtuple->Show(0)`.
-
-### Running jobs in crab
-To submit a large production you will need to run over all the files. 
-You can use `crab` for this. This needs a valid GRID certificate.
-
-The crab configuration files are in the `fragments/` folder. You can download them to the `test/` directory. See e.g. [here for electrons](https://github.com/cmantill/ECONAutoencoderStudy/blob/master/fragments/eleCrabConfig.py). Make sure to change the output username.
-Then do e.g. `crab submit eleCrabConfig.py`.
-
-Some example files are already produced here:
-```
-/eos/uscms/store/user/cmantill/HGCAL/AE_Jun11/
-```
-
-You can look at the contents of one file, for example:
-```
-/eos/uscms/store/user/cmantill/HGCAL/AE_Jun11/SinglePhoton_PT2to200/crab_AE_photons_3_23_2/210611_190930/0000/ntuple_8.root
-```
-
-### Post-processing with condor 
-There are several post-processing steps that we can do to these input files:
-- Generator Level Matching with reconstructed clusters: For this we use `scripts/matching.py`. It takes as input the HGCAL TPG ntuples (produced in the last step) and produces pandas dataframes in HDF files. It is selecting gen particles reaching the HGCAL and matching them with reconstructed clusters. This step is done for electrons, photons and pions.
-   -  The output of the `matching` step is used in the `Energy correction and resolution notebook` (described later)
-- Saving reconstructed clusters information after applying energy corections For this we use `scripts/clusters2hdf.py`. The script is very similar to the last one, except that no matching is performed, and energy corrections derived in the `notebooks/electron_photon_calibration_autoencoder_210611.ipynb` notebook, are applied to PU clusters. Therefore, this step should be done once the latter step is completed.
-
-As it can take some time to run on all events, both scripts are associated with a job launcher script `scripts/submit_condor.py`, which launches jobs to run on multiple input files. 
-
-To be able to run files (in cmslpc) you should tar your python3 CMSSW environment and copy it to your eos space. Also you should have a valid proxy.
-```
-cd $CMSSW_BASE/../
-tar -zvcf CMSSW_11_3_0.tgz CMSSW_11_3_0  --exclude="*.pdf" --exclude="*.pyc" --exclude=tmp --exclude-vcs --exclude-caches-all --exclude="*err*" --exclude=*out_* --exclude=condor --exclude=.git --exclude=src
-mv CMSSW_11_3_0.tgz /eos/uscms/store/user/$USER/
-```
-
-An example of configuration file is provided in `scripts/batch_matching_autoencoder_sigdriven_210611_cfg.py`. The command is:
-```bash
-cd scripts/
-mkdir -p condor/
-python submit_condor.py --cfg batch_matching_autoencoder_sigdriven_210611_cfg # (e/g cluster energy correction and resolution study)
-```
-(Note that the config file is given without the `.py` extension)
-
-This script will create condor submission files. 
-
-Then you can execute the condor submission, e.g.:
-```
-  condor_submit condor/3_22_1/electron_photon_signaldriven/v_1_2021-06-11/photons/submit.cmd 
-  condor_submit condor/3_22_1/electron_photon_signaldriven/v_1_2021-06-11/electrons/submit.cmd 
-```
-
-(make sure you have a valid proxy before submitting condor jobs).
-
-Otherwise, you can find example dataframes already produced here:
+The analysis code here is written to run in standalone python, i.e., no CMSSW dependence.  The current environment configuration may change.  To source the environment run the following:
 
 ```
-/eos/uscms/store/user/cmantill/HGCAL/study_autoencoder/3_22_1/electron_photon_signaldriven/*
-e.g.
-/eos/uscms/store/user/cmantill/HGCAL/study_autoencoder/3_22_1/electron_photon_signaldriven/v_1_2021-06-11/electrons/electrons_0.hdf5
+source scripts/setup.sh
 ```
 
-The same step needs to be repeated to processed pileup (PU) events. 
-The PU preprocessing script is `scripts/clusters2hdf.py` and the associated configs needs to have the `clustering option = 0`.
+This will setup the python virtual environment `hgcalPythonEnv` and create a directory with all the necessary libraries.  To activate the environment, run:
 
-An example of config file is provided in `scripts/batch_nomatching_pu_for_id_autoencoder_sigdriven_210611_cfg.py`. The command is:
-```bash
-python3 submit_condor.py --cfg batch_nomatching_pu_for_id_autoencoder_sigdriven_210611_cfg
 ```
-(Note that the config file is given without the `.py` extension and that we need python3 to open the pickle files)
-
-The dataframes produced in this step can be used to train a discriminator (BDT) that classifies signal (electrons) and background (pileup). 
-
-The PU preprocessing can then be rerun with different settings, adding a cluster selection based on the ID BDT, and storing only the maximum $p_T$ cluster passing the ID selection.
-
-The config file is `scripts/batch_nomatching_pu_discri_autoencoder_sigdriven_210611_cfg.py`, and the command is, as before:
-```bash
-python3 submit_condor.py --cfg batch_nomatching_pu_discri_autoencoder_sigdriven_210611_cfg
+source hgcalPythonEnv/bin/activate
 ```
-(Note that the config file is given without the `.py` extension and that we need python3 to open the pickle files)
+
+## Running matching script
+
+The first step in analyzing HGCal data is to produce ntuples using CMSSW to be processed here.  The matching script (`scripts/matching.py`) associates generator level particles to clusters that are produced under various different readout algorithm scenarios defined in the ntuple configuration.  The matching is done by finding the generator particle that is closest in dR to each cluster subject to the requirements:
+
+   * cluster pt > 5 GeV
+   * dR < 0.05
+   * ...
+
+The output is a dictionary of dataframes, one for each algorithm that is specified and one for generator particles, stored in a pickle file.  The default configuration for running the script is in `config/matching_cfg.yaml`.   An alternative configuration can be passed using the `--config` option when executing the script).  The configuration allows for specification of all necessary information for running the scripts such as input files, output directory, variables to store in the output, etc.  
+
+To run the script with default configuration, run the following:
+
+```
+python scripts/matching.py
+```
+
+This will run over the single photon samples specificed in `data/photons_nopu_ntuples.txt`, and will produce a file in the `data` directory, `output_0.pkl`, that contains the dictionary of dataframes.
+
+To run over multiple files using condor, use `scripts/condor_submit.py`.  The default configuration is in `config/batch_cfg.yaml` which is mainly useful for specifying the location of input files and where the output should be transferred to on exit.  Both the input and output should be located somewhere on EOS for now.  The commands that are run on the batch node are specified in `scripts/batch_executable.sh`.  The script is mainly responsible for sourcing the computing environment configuration and executing the matching script (or, eventually, whatever script you might want to run).
 
 ## Setup for juptyer notebooks
 For running the notebooks that analyze the pandas dataframes.
@@ -202,6 +119,7 @@ for (const auto& trigCell : trigCellVecInput) {
    - Derives layer weight correction factors with 0PU unconverted photons
    - Derives $\eta$ dependent linear energy correction (this is an additive correction) with 200PU electrons
    - Produces energy scale and resolution plots, in particular differentially vs $|\eta|$ and $p_T$
+
 - `electron_pu_bdt_tuning_autoencoder_210611.ipynb`: 
    - Finds the set of hyperparameters to be used later in the training of BDT (discriminator between electrons and PileUp). XGBOOST is used to train the BDTs.
       - Scans the L1 and L2 regularization parameters. 
@@ -209,12 +127,15 @@ for (const auto& trigCell : trigCellVecInput) {
       - Scans the BDT tree depth. 
    - Checks the behaviour of the BDT as a function of the number of boosting steps. 
    - Checks for overtraining with a final set of hyperparameters. The notebook focuses on the limitation of overtraining rather than optimal performance. This hyperparameter tuning is currently done by hand, and some automatization could be implemented. 
+
 - `electron_pu_autoencoder_210611.ipynb`: 
    - Performs the final BDT ID training on the full sample
    - Computes the signal efficiencies as a function of $\eta$ and $p_T$, for a 99% inclusive signal efficiency working point.
 - `electron_turnon_autoencoder_210611.ipynb`: 
    - Computes the trigger efficiency turn on curves (using the energy corrections and the BDT ID)
    - The turn-on curves are finally used to extract the L1 $\to$ offline threshold mappings, which will be used to compare L1 rates as a function of the so-called offline threshold. In our case this offline threshold is defined as the gen-level $p_T$ at which the turnon reaches 95% efficiency.
+
 - `egamma_rates_autoencoder_210611.ipynb`: 
    - Extracts the rate and plots the rate as a function of the offline threshold.
    - These are the final plots used to compare the different algorithms.
+
