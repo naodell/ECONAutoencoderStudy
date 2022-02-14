@@ -1,0 +1,14 @@
+/uscms/home/naodell/eos/hgcal/econ/SinglePhoton_PT2to200/crab_photons_nopu/211115_193613/0000/ntuple_no_cuts_10.root
+/uscms/home/naodell/eos/hgcal/econ/SinglePhoton_PT2to200/crab_photons_nopu/211115_193613/0000/ntuple_no_cuts_11.root
+/uscms/home/naodell/eos/hgcal/econ/SinglePhoton_PT2to200/crab_photons_nopu/211115_193613/0000/ntuple_no_cuts_12.root
+/uscms/home/naodell/eos/hgcal/econ/SinglePhoton_PT2to200/crab_photons_nopu/211115_193613/0000/ntuple_no_cuts_13.root
+/uscms/home/naodell/eos/hgcal/econ/SinglePhoton_PT2to200/crab_photons_nopu/211115_193613/0000/ntuple_no_cuts_14.root
+/uscms/home/naodell/eos/hgcal/econ/SinglePhoton_PT2to200/crab_photons_nopu/211115_193613/0000/ntuple_no_cuts_1.root
+/uscms/home/naodell/eos/hgcal/econ/SinglePhoton_PT2to200/crab_photons_nopu/211115_193613/0000/ntuple_no_cuts_2.root
+/uscms/home/naodell/eos/hgcal/econ/SinglePhoton_PT2to200/crab_photons_nopu/211115_193613/0000/ntuple_no_cuts_3.root
+/uscms/home/naodell/eos/hgcal/econ/SinglePhoton_PT2to200/crab_photons_nopu/211115_193613/0000/ntuple_no_cuts_4.root
+/uscms/home/naodell/eos/hgcal/econ/SinglePhoton_PT2to200/crab_photons_nopu/211115_193613/0000/ntuple_no_cuts_5.root
+/uscms/home/naodell/eos/hgcal/econ/SinglePhoton_PT2to200/crab_photons_nopu/211115_193613/0000/ntuple_no_cuts_6.root
+/uscms/home/naodell/eos/hgcal/econ/SinglePhoton_PT2to200/crab_photons_nopu/211115_193613/0000/ntuple_no_cuts_7.root
+/uscms/home/naodell/eos/hgcal/econ/SinglePhoton_PT2to200/crab_photons_nopu/211115_193613/0000/ntuple_no_cuts_8.root
+/uscms/home/naodell/eos/hgcal/econ/SinglePhoton_PT2to200/crab_photons_nopu/211115_193613/0000/ntuple_no_cuts_9.root

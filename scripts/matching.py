@@ -93,7 +93,7 @@ if __name__=='__main__':
 
     if args.is_batch: # having some issues with xrd on condor
         uproot.open.defaults["xrootd_handler"] = uproot.MultithreadedXRootDSource
-        output_dir = '.'
+        output_dir = 'data'
 
     # read root files
     df_gen_list = []
@@ -126,9 +126,9 @@ if __name__=='__main__':
     set_indices(df_gen)
     df_gen_pos, df_gen_neg = [df for _, df in df_gen.groupby(df_gen['genpart_exeta'] < 0)]
 
-    output_name = f'{output_dir}/output_{args.job_id}'
+    output_name = f'{output_dir}/output_{args.job_id}.pkl'
+    outfile = open(output_name, 'wb')
     #store = pd.HDFStore(output_name, mode='w')
-    outfile    = open(f'{output_name}.pkl', 'wb')
     output_dict = dict(gen=df_gen)
     for algo_name, dfs in dict_algos.items():
         df_algo = pd.concat(dfs)
@@ -187,6 +187,8 @@ if __name__=='__main__':
 
     ###save files to savedir in HDF (temporarily use pickle files because of problems with hdf5 on condor)
     pickle.dump(output_dict, outfile)
+    outfile.close()
+    print(f'Writing output to {output_name}')
 
     #store['gen'] = df_gen
     #store.close()
