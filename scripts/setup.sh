@@ -9,12 +9,12 @@ source $NAME/bin/activate
 LOCALPATH=$NAME$(python -c 'import sys; print(f"/lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages")')
 export PYTHONPATH=${LOCALPATH}:$PYTHONPATH
 python -m pip install setuptools pip --upgrade
-python -m pip install uproot --upgrade
-python -m pip install awkward --upgrade
-python -m pip install cython --upgrade
-python -m pip install h5py --upgrade
-python -m pip install tables --upgrade
-python -m pip install pandas --upgrade
+python -m pip install --upgrade uproot
+python -m pip install --upgrade awkward
+python -m pip install --upgrade cython
+python -m pip install --upgrade h5py
+python -m pip install --upgrade tables
+python -m pip install --upgrade --upgrade-strategy only-if-needed pandas 
 python -m pip install pyjet
 python -m pip install scikit-learn
 python -m pip install xgboost

@@ -3,7 +3,7 @@ local: true
 executable: "scripts/batch_executable.sh"
 output_dir: "/eos/uscms/store/user/naodell/HGCAL/dataframes/"
 stage_dir: "batch"
-prefix: "test"
+prefix: "electron_photon"
 
 # provide inputs with location and file split
 inputs: 
