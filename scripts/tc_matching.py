@@ -1,3 +1,7 @@
+'''
+    Matches trigger cells to reconstructed clusters and gen particles, and
+    converts input root files to dataframes.
+'''
 
 import os
 import sys
@@ -17,9 +21,6 @@ import pandas as pd
 from pandas.core.common import SettingWithCopyWarning
 
 warnings.simplefilter(action='ignore', category=SettingWithCopyWarning)
-
-def matching(event):
-    return event.cl3d_pt==event.cl3d_pt.max()
 
 def set_indices(df):
     # modifies multiindex from uproot so that the leading index corresponds the
