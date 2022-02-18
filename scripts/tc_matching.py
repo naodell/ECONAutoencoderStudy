@@ -11,6 +11,7 @@ import warnings
 from itertools import chain
 from pathlib import Path
 
+from tqdm import tqdm
 import pickle
 import yaml
 import awkward
@@ -35,7 +36,7 @@ if __name__=='__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--config',
-                        default='config/matching_cfg.yaml',
+                        default='config/tc_matching_cfg.yaml',
                         help='File specifying configuration of matching process.'
                         )
     parser.add_argument('--job_id', 
@@ -52,6 +53,11 @@ if __name__=='__main__':
                         default=None, 
                         type=str, 
                         help='Directory to write output file to.  If this option is used, it will override the value provided in the configuration file.'
+                        )
+    parser.add_argument('--max_events', 
+                        default=None, 
+                        type=int, 
+                        help='Maximum number of events to process.  Useful for testing...'
                         )
     parser.add_argument('--is_batch', 
                         action='store_true',
@@ -71,12 +77,15 @@ if __name__=='__main__':
     backend         = config['backend']
     frontend_algos  = config['frontends']
     ntuple_template = config['ntuple_template']
-    branches_gen    = config['branches_gen']
-    branches_cl3d   = config['branches_cl3d']
     output_dir      = config['output_destination']
 
-    layer_labels = [f'cl3d_layer_{n}_pt' for n in range(36)]
-    gen_cuts = f'(genpart_reachedEE == {reached_ee}) and (genpart_gen != -1)'
+    branches_gen    = config['branches_gen']
+    branches_cl3d   = config['branches_cl3d']
+    branches_tc     = config['branches_tc']
+
+    # baseline cuts (move these to the configuration file?)
+    gen_cuts     = f'(genpart_reachedEE == {reached_ee}) and (genpart_gen != -1)'
+    tc_cuts      = ''
     cluster_cuts = 'cl3d_pt > 5.'
 
     if args.input_file:
@@ -93,36 +102,53 @@ if __name__=='__main__':
         output_dir = args.output_dir
 
     if args.is_batch: # having some issues with xrd on condor
+        # override some user options when running over batch
         uproot.open.defaults["xrootd_handler"] = uproot.MultithreadedXRootDSource
         output_dir = 'data'
 
     # read root files
     df_gen_list = []
+    df_tc_list = []
     dict_algos = {fe:[] for fe in frontend_algos}
-    for filename in file_list:
-        print(filename)
+    layer_labels = [f'cl3d_layer_{n}_pt' for n in range(36)]
+    for filename in tqdm(file_list, desc='Processing files and retrieving data...'):
+        tqdm.write(filename)
+
+        # get gen particles
         uproot_file = uproot.open(filename)
         gen_tree = uproot_file[gen_tree_name]
-        df_gen = pd.concat([df for df in gen_tree.iterate(branches_gen, library='pd', step_size=500)])
+        df_gen = pd.concat([df for df in gen_tree.iterate(branches_gen, library='pd', step_size=500, entry_stop=args.max_events)])
         df_gen.query(gen_cuts, inplace=True)
         df_gen_list.append(df_gen)
 
-        for fe in frontend_algos:
+        # get trigger cells (do this for the most inclusive algorithm, same as gen tree)
+        tc_tree = uproot_file[gen_tree_name]
+        df_tc = pd.concat([df for df in tc_tree.iterate(branches_tc, library='pd', step_size=500, entry_stop=args.max_events)])
+        if tc_cuts != '':
+            df_tc.query(tc_cuts, inplace=True)
+        df_tc_list.append(df_tc)
+
+        for fe in tqdm(frontend_algos, desc='Processing algorithms...'):
             tree_name = ntuple_template.format(fe=fe, be=backend)
             algo_tree = uproot_file[tree_name]
-            df_algo = pd.concat([df for df in algo_tree.iterate(branches_cl3d, library='pd', step_size=500)])
+            df_algo = pd.concat([df for df in algo_tree.iterate(branches_cl3d, library='pd', step_size=500, entry_stop=args.max_events)])
 
             # Trick to read layers pTs, which is a vector of vector
             algo_tree = uproot_file[tree_name]
-            layer_pt = list(chain.from_iterable(algo_tree.arrays(['cl3d_layer_pt'])['cl3d_layer_pt'].tolist()))
+            layer_pt = list(chain.from_iterable(algo_tree.arrays(['cl3d_layer_pt'], entry_stop=args.max_events)['cl3d_layer_pt'].tolist()))
             df_layer_pt = pd.DataFrame(layer_pt, columns=layer_labels, index=df_algo.index)
             df_algo = pd.concat([df_algo, df_layer_pt], axis=1)
           
             dict_algos[fe].append(df_algo)
 
+    print('Finished extracting data.  Carrying out trigger cell and cluster gen matching...')
+
     # concatenate dataframes for each algorithm after running over all files
     # clean particles that are not generator-level (genpart_gen) or didn't
     # reach endcap (genpart_reachedEE)
+    df_tc = pd.concat(df_tc_list)
+    set_indices(df_tc)
+
     df_gen = pd.concat(df_gen_list)
     set_indices(df_gen)
     df_gen_pos, df_gen_neg = [df for _, df in df_gen.groupby(df_gen['genpart_exeta'] < 0)]
@@ -130,8 +156,8 @@ if __name__=='__main__':
     output_name = f'{output_dir}/output_{args.job_id}.pkl'
     outfile = open(output_name, 'wb')
     #store = pd.HDFStore(output_name, mode='w')
-    output_dict = dict(gen=df_gen)
-    for algo_name, dfs in dict_algos.items():
+    output_dict = dict(gen=df_gen, tc=df_tc)
+    for algo_name, dfs in tqdm(dict_algos.items(), total=len(dict_algos.keys()), desc='Matching clusters to gen particles...'):
         df_algo = pd.concat(dfs)
         set_indices(df_algo)
 
@@ -139,7 +165,7 @@ if __name__=='__main__':
         # delta_r and associated gen properties for closest match (this could
         # use some cleanup)
         matched_features = []
-        for (event, cl_id), cluster in df_algo.iterrows():
+        for (event, cl_id), cluster in tqdm(df_algo.iterrows()):
             cluster_eta, cluster_phi = cluster['cl3d_eta'], cluster['cl3d_phi']
 
             # first check if there are any gen particles passing quality cuts
@@ -186,7 +212,7 @@ if __name__=='__main__':
         output_dict[algo_name] = df_algo
         #store[algo_name] = df_algo
 
-    ###save files to savedir in HDF (temporarily use pickle files because of problems with hdf5 on condor)
+    ### save files to savedir in HDF (temporarily use pickle files because of problems with hdf5 on condor)
     pickle.dump(output_dict, outfile)
     outfile.close()
     print(f'Writing output to {output_name}')
