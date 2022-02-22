@@ -157,60 +157,8 @@ if __name__=='__main__':
     outfile = open(output_name, 'wb')
     #store = pd.HDFStore(output_name, mode='w')
     output_dict = dict(gen=df_gen, tc=df_tc)
-    for algo_name, dfs in tqdm(dict_algos.items(), total=len(dict_algos.keys()), desc='Matching clusters to gen particles...'):
-        df_algo = pd.concat(dfs)
-        set_indices(df_algo)
 
-        # calculate delta_r between clusters and gen particles and append
-        # delta_r and associated gen properties for closest match (this could
-        # use some cleanup)
-        matched_features = []
-        for (event, cl_id), cluster in tqdm(df_algo.iterrows()):
-            cluster_eta, cluster_phi = cluster['cl3d_eta'], cluster['cl3d_phi']
-
-            # first check if there are any gen particles passing quality cuts
-            # with same eta sign as the cluster.  If there is no candidate for
-            # matching, fill the entry with dummy values.
-            if cluster_eta > 0:
-                if df_gen_pos.index.isin([event], level=0).any():
-                    df_gen_event = df_gen_pos.loc[event]
-                else:
-                    matched_features.append([-1, -1, -1])
-                    continue
-            else:
-                if df_gen_neg.index.isin([event], level=0).any():
-                    df_gen_event = df_gen_neg.loc[event]
-                else:
-                    matched_features.append([-1, -1, -1])
-                    continue
-
-            gen_eta = df_gen_event['genpart_exeta'].values
-            gen_phi = df_gen_event['genpart_exphi'].values
-
-            # calculate dr between cluster and all gen particles
-            deta = cluster_eta - gen_eta
-            dphi = cluster_phi - gen_phi
-            dphi -= (dphi > np.pi)*2*np.pi
-            dr = np.sqrt(deta*deta + dphi*dphi)
-
-            # find index of gen particle with smallest value of dr and assign cluster its properties
-            ix_min = dr.argmin()
-            gen_candidate = df_gen_event.iloc[ix_min]
-            matched_features.append([dr[ix_min], gen_candidate['genpart_pt'], gen_candidate['genpart_pid']])
-
-        # save information about the per object gen matched quantities
-        matched_features = np.array(matched_features)
-        df_algo['matched_dr'] = matched_features[:, 0]
-        df_algo['matched_pt'] = matched_features[:, 1]
-        df_algo['matched_pid'] = matched_features[:, 2]
-        
-        # keep matched clusters only and select deltar under threshold
-        # (threshold is set in configuration file)
-        if match_only:
-            df_algo.query(f'delta_r <= {dr_threshold} and delta_r != -1', inplace=True)
-    
-        output_dict[algo_name] = df_algo
-        #store[algo_name] = df_algo
+    ### matching loop deleted, but might be useful to reintroduce here ###
 
     ### save files to savedir in HDF (temporarily use pickle files because of problems with hdf5 on condor)
     pickle.dump(output_dict, outfile)
