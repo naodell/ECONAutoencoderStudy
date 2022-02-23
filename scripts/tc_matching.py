@@ -106,10 +106,11 @@ if __name__=='__main__':
         uproot.open.defaults["xrootd_handler"] = uproot.MultithreadedXRootDSource
         output_dir = 'data'
 
+    print('Getting gen particles and trigger cells...')
+
     # read root files
     df_gen_list = []
     df_tc_list = []
-    dict_algos = {fe:[] for fe in frontend_algos}
     layer_labels = [f'cl3d_layer_{n}_pt' for n in range(36)]
     for filename in tqdm(file_list, desc='Processing files and retrieving data...'):
         tqdm.write(filename)
@@ -117,7 +118,7 @@ if __name__=='__main__':
         # get gen particles
         uproot_file = uproot.open(filename)
         gen_tree = uproot_file[gen_tree_name]
-        df_gen = pd.concat([df for df in gen_tree.iterate(branches_gen, library='pd', step_size=500, entry_stop=args.max_events)])
+        df_gen = pd.concat([df for df in gen_tree.iterate(branches_gen, library='pd', step_size=5000, entry_stop=args.max_events)])
         df_gen.query(gen_cuts, inplace=True)
         df_gen_list.append(df_gen)
 
@@ -127,19 +128,6 @@ if __name__=='__main__':
         if tc_cuts != '':
             df_tc.query(tc_cuts, inplace=True)
         df_tc_list.append(df_tc)
-
-        for fe in tqdm(frontend_algos, desc='Processing algorithms...'):
-            tree_name = ntuple_template.format(fe=fe, be=backend)
-            algo_tree = uproot_file[tree_name]
-            df_algo = pd.concat([df for df in algo_tree.iterate(branches_cl3d, library='pd', step_size=500, entry_stop=args.max_events)])
-
-            # Trick to read layers pTs, which is a vector of vector
-            algo_tree = uproot_file[tree_name]
-            layer_pt = list(chain.from_iterable(algo_tree.arrays(['cl3d_layer_pt'], entry_stop=args.max_events)['cl3d_layer_pt'].tolist()))
-            df_layer_pt = pd.DataFrame(layer_pt, columns=layer_labels, index=df_algo.index)
-            df_algo = pd.concat([df_algo, df_layer_pt], axis=1)
-          
-            dict_algos[fe].append(df_algo)
 
     print('Finished extracting data.  Carrying out trigger cell and cluster gen matching...')
 
