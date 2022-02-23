@@ -23,7 +23,8 @@ mkdir data
 ls -lh
 python -V
 #mv ${infile} data/photons_nopu_ntuples.txt
-python scripts/matching.py --config config/matching_cfg.yaml --job_id ${jobid} --input_file ${infile} --output_dir ./data --is_batch
+#python scripts/matching.py --config config/matching_cfg.yaml --job_id ${jobid} --input_file ${infile} --output_dir ./data --is_batch
+python scripts/tc_matching.py --config config/tc_matching_cfg.yaml --job_id ${jobid} --input_file ${infile} --is_batch
 ls data
 
 #python -c 'import pandas as pd; store = pd.HDFStore("test.hdf5", mode="w");store.close()'

@@ -59,7 +59,7 @@ def prepare_submit(process, batches, output_dir, executable):
         Notification          = Never
         Requirements          = OpSys == "LINUX"&& (Arch != "DUMMY" )
         request_disk          = 2000000
-        request_memory        = 4096
+        request_memory        = 32000
         \n
     '''))
 
