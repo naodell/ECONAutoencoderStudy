@@ -6,3 +6,4 @@ condor/
 *~
 *.pyc
 *.pdf
+data
