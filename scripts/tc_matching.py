@@ -59,6 +59,11 @@ if __name__=='__main__':
                         type=int, 
                         help='Maximum number of events to process.  Useful for testing...'
                         )
+    parser.add_argument('--events_per_file', 
+                        default=100, 
+                        type=int, 
+                        help='Set the maximum number of events to be saved to each output file.  The value should be selected to prevent using more memory than available.'
+                        )
     parser.add_argument('--is_batch', 
                         action='store_true',
                         help='Use this if running with a (lpc condor?) batch system to enable xrd to open remote files.'
@@ -85,7 +90,7 @@ if __name__=='__main__':
 
     # baseline cuts (move these to the configuration file?)
     gen_cuts     = f'(genpart_reachedEE == {reached_ee}) and (genpart_gen != -1)'
-    tc_cuts      = ''
+    tc_cuts      = 'tc_energy > 0.01'
     cluster_cuts = 'cl3d_pt > 5.'
 
     if args.input_file:
@@ -110,7 +115,6 @@ if __name__=='__main__':
 
     # read root files
     df_gen_list = []
-    df_tc_list = []
     layer_labels = [f'cl3d_layer_{n}_pt' for n in range(36)]
     for filename in tqdm(file_list, desc='Processing files and retrieving data...'):
         tqdm.write(filename)
@@ -118,40 +122,34 @@ if __name__=='__main__':
         # get gen particles
         uproot_file = uproot.open(filename)
         gen_tree = uproot_file[gen_tree_name]
-        df_gen = pd.concat([df for df in gen_tree.iterate(branches_gen, library='pd', step_size=5000, entry_stop=args.max_events)])
+        df_gen = pd.concat([df for df in gen_tree.iterate(branches_gen, library='pd', step_size=args.events_per_file, entry_stop=args.max_events)])
         df_gen.query(gen_cuts, inplace=True)
         df_gen_list.append(df_gen)
+        df_gen = pd.concat(df_gen_list)
+        set_indices(df_gen)
 
         # get trigger cells (do this for the most inclusive algorithm, same as gen tree)
         tc_tree = uproot_file[gen_tree_name]
-        df_tc = pd.concat([df for df in tc_tree.iterate(branches_tc, library='pd', step_size=500, entry_stop=args.max_events)])
-        if tc_cuts != '':
-            df_tc.query(tc_cuts, inplace=True)
-        df_tc_list.append(df_tc)
+        tree_iter = tc_tree.iterate(branches_tc, 
+                                    cut=tc_cuts,
+                                    library='pd', 
+                                    step_size=args.events_per_file, 
+                                    entry_stop=args.max_events
+                                    )
+        for i, df_tc in tqdm(enumerate(tree_iter)):
 
-    print('Finished extracting data.  Carrying out trigger cell and cluster gen matching...')
+            # apply some cuts
+            if tc_cuts != '':
+                df_tc.query(tc_cuts, inplace=True)
 
-    # concatenate dataframes for each algorithm after running over all files
-    # clean particles that are not generator-level (genpart_gen) or didn't
-    # reach endcap (genpart_reachedEE)
-    df_tc = pd.concat(df_tc_list)
-    set_indices(df_tc)
+            # set indices to (event, tc_id)
+            set_indices(df_tc)
+    
+            ### save files to savedir in HDF (temporarily use pickle files because of problems with hdf5 on condor)
+            tqdm.write(f'Writing output to {output_name}')
+            output_name = f'{output_dir}/output_{args.job_id}_{i}.pkl'
+            outfile = open(output_name, 'wb')
+            output_dict = dict(gen=df_gen, tc=df_tc)
+            pickle.dump(output_dict, outfile)
+            outfile.close()
 
-    df_gen = pd.concat(df_gen_list)
-    set_indices(df_gen)
-    df_gen_pos, df_gen_neg = [df for _, df in df_gen.groupby(df_gen['genpart_exeta'] < 0)]
-
-    output_name = f'{output_dir}/output_{args.job_id}.pkl'
-    outfile = open(output_name, 'wb')
-    #store = pd.HDFStore(output_name, mode='w')
-    output_dict = dict(gen=df_gen, tc=df_tc)
-
-    ### matching loop deleted, but might be useful to reintroduce here ###
-
-    ### save files to savedir in HDF (temporarily use pickle files because of problems with hdf5 on condor)
-    pickle.dump(output_dict, outfile)
-    outfile.close()
-    print(f'Writing output to {output_name}')
-
-    #store['gen'] = df_gen
-    #store.close()
