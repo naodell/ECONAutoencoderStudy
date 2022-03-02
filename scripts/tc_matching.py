@@ -154,8 +154,13 @@ if __name__=='__main__':
             outfile.close()
             tqdm.write(f'Writing output to {output_name}')
 
-            # rough draft of training data: write the data from each wafer with sim energy into a 8x8 grid
-            # in this version take wafers with maximum energy deposit, basically ignore everything else
+            # training data: write the data from each wafer above some energy
+            # into a 14x8x8 grid (layer x cellu x cellv).  Save data to
+            # two-level dictionaries where the first level has keys (event
+            # number, zside) and the next level has (waferu, waferv).  In the
+            # next iteration, introduce rotating the waferu, waferv so that the
+            # maximum wafer lies in the first sextent (between 0 and pi/3).
+
             # First identify wafers with some minimum energy treshold to save
             group_labels      = ['event', 'tc_zside', 'tc_layer', 'tc_waferu', 'tc_waferv']
             df_tcee          = df_tc.query('tc_subdet == 1')
@@ -186,7 +191,6 @@ if __name__=='__main__':
                 for (cellu, cellv), e in df_wafer['tc_energy'].items():
                     layer = int((ix_wafer[2] - 1)/2)
                     wafer_grid[layer, cellu, cellv] = e
-                
 
             output_name = f'{output_dir}/grids_{args.job_id}_{i}.pkl'
             outfile = open(output_name, 'wb')

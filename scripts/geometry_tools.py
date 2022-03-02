@@ -7,17 +7,28 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 
-def hex_to_cartesian(hex_coord, zside=-1):
-    # convert hex coordinates to cartesian coords this should change depending
-    # on whether you are looking at the +/- z side.  Currently only works of -z
-    # side.
-    angle = np.pi/6
-    hex_radius = 0.95*8*2.54/2
+def hex_to_cartesian(hex_coord, angle = np.pi/6, hex_radius=0.95*8*2.54/2, zside=-1):
+    '''
+    Convert hex coordinates to cartesian coords this should change depending
+    on whether you are looking at the +/- z side.  Currently only works of -z
+    side.
+    '''
     d = 2*hex_radius*np.cos(angle)
     trans_matrix = np.array([[1., -np.sin(angle)], [0., np.cos(angle)]])
     xy = np.dot(trans_matrix, hex_coord)
     
     return xy
+
+def hex_rotation(hex_coord, n):
+    '''
+    Rotates input coordinates to a new set of coordinates n*pi/3.
+    '''
+    uv_rotation_matrix = np.rint([
+        [np.cos(rho) + np.sin(rho)/np.sqrt(3), -2*np.sin(rho)/np.sqrt(3)],  
+        [2*np.sin(rho)/np.sqrt(3)            , np.cos(rho) - np.sin(rho)/np.sqrt(3)]
+       ])
+    uv_rot = np.dot(uv_rotation_matrix, np.array(hex_coord)).astype(int)
+    return uv_rot
 
 def draw_module_layers():
     '''
