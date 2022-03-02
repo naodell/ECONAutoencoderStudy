@@ -14,13 +14,10 @@ def hex_to_cartesian(hex_coord, zside=-1):
     angle = np.pi/6
     hex_radius = 0.95*8*2.54/2
     d = 2*hex_radius*np.cos(angle)
-    xcoord = [d*(c[0] - c[1]*np.sin(angle)) for c in hex_coord]
-    ycoord = [d*c[1]*np.sin(np.pi/2 - angle) for c in hex_coord]
-
-    # do the above conversion using this at some point
-    #trans_matrix = np.array([[1., np.sin(angle)], [0., np.sin(np.pi/2 - angle)]])
+    trans_matrix = np.array([[1., -np.sin(angle)], [0., np.cos(angle)]])
+    xy = np.dot(trans_matrix, hex_coord)
     
-    return xcoord, ycoord
+    return xy
 
 def draw_module_layers():
     '''

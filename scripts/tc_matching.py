@@ -10,6 +10,7 @@ import subprocess
 import warnings
 from itertools import chain
 from pathlib import Path
+from tempfile import TemporaryFile
 
 from tqdm import tqdm
 import pickle
@@ -131,7 +132,7 @@ if __name__=='__main__':
         # get trigger cells (do this for the most inclusive algorithm, same as gen tree)
         tc_tree = uproot_file[gen_tree_name]
         tree_iter = tc_tree.iterate(branches_tc, 
-                                    cut=tc_cuts,
+                                    #cut=tc_cuts,
                                     library='pd', 
                                     step_size=args.events_per_file, 
                                     entry_stop=args.max_events
@@ -146,10 +147,51 @@ if __name__=='__main__':
             set_indices(df_tc)
     
             ### save files to savedir in HDF (temporarily use pickle files because of problems with hdf5 on condor)
-            tqdm.write(f'Writing output to {output_name}')
             output_name = f'{output_dir}/output_{args.job_id}_{i}.pkl'
             outfile = open(output_name, 'wb')
             output_dict = dict(gen=df_gen, tc=df_tc)
             pickle.dump(output_dict, outfile)
             outfile.close()
+            tqdm.write(f'Writing output to {output_name}')
+
+            # rough draft of training data: write the data from each wafer with sim energy into a 8x8 grid
+            # in this version take wafers with maximum energy deposit, basically ignore everything else
+            # First identify wafers with some minimum energy treshold to save
+            group_labels      = ['event', 'tc_zside', 'tc_layer', 'tc_waferu', 'tc_waferv']
+            df_tcee          = df_tc.query('tc_subdet == 1')
+            g_wafers          = df_tcee.groupby(group_labels)
+            wafer_sums        = g_wafers.apply(lambda x: x['tc_energy'].sum()) 
+            masked_wafer_sums = wafer_sums.loc[wafer_sums > 1.] # only keep wafers with enough energy to be interesting
+
+            # in the next iteration, I will save wafers by layers, for now just
+            # keep all wafers and don't differentiate based on layer or wafer
+            # id 
+            
+            group_labels.remove('event')
+            df_tcee = df_tcee.set_index(group_labels, append=True).droplevel(1)
+            data_dict = dict()
+            for ix_wafer in masked_wafer_sums.index:
+                event, zside = ix_wafer[0], ix_wafer[1]
+                if (event, zside) not in data_dict.keys():
+                    data_dict[(event, zside)] = dict()
+
+                wafer_dict = data_dict[(event, zside)]
+                waferu, waferv = ix_wafer[3], ix_wafer[4]
+                if (waferu, waferv) not in wafer_dict.keys():
+                    wafer_dict[(waferu, waferv)] = np.zeros((14, 8, 8))
+
+                wafer_grid = wafer_dict[(waferu, waferv)]
+                df_wafer = df_tcee.loc[ix_wafer]
+                df_wafer.set_index(['tc_cellu', 'tc_cellv'], inplace=True)
+                for (cellu, cellv), e in df_wafer['tc_energy'].items():
+                    layer = int((ix_wafer[2] - 1)/2)
+                    wafer_grid[layer, cellu, cellv] = e
+                
+
+            output_name = f'{output_dir}/grids_{args.job_id}_{i}.pkl'
+            outfile = open(output_name, 'wb')
+            pickle.dump(data_dict, outfile)
+            outfile.close()
+            tqdm.write(f'Writing output to {output_name}')
+
 

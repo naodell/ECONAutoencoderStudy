@@ -26,7 +26,7 @@ branches_cl3d: # save minimal cluster information
 branches_tc:
     - 'event'
 #    - 'tc_n' # this is a count of trigger cells that are saved (not needed)
-    - 'tc_id'
+#    - 'tc_id'
     - 'tc_subdet'
     - 'tc_zside'
     - 'tc_layer'
@@ -35,7 +35,7 @@ branches_tc:
 #    - 'tc_wafer' 
     - 'tc_waferu' #(?)
     - 'tc_waferv' #(?)
-    - 'tc_wafertype'
+#    - 'tc_wafertype'
 #    - 'tc_cell'
     - 'tc_cellu'
     - 'tc_cellv'
@@ -46,11 +46,11 @@ branches_tc:
 #    - 'tc_mipPt'
     - 'tc_energy'
     - 'tc_simenergy'
-    - 'tc_eta'
-    - 'tc_phi'
+#    - 'tc_eta'
+#    - 'tc_phi'
     - 'tc_x'
     - 'tc_y'
-    - 'tc_z'
+#    - 'tc_z'
 #- 'tc_cluster_id' # these do not seem super useful as is
 #- 'tc_multicluster_id'
 #    - 'tc_multicluster_pt'
